@@ -13,16 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 if [ "$VERBOSE" != "true" ]; then
-  exec &>/dev/null
+  exec >/dev/null
 fi
 
-set -Eeox pipefail
+set -Eeo pipefail
 
 # 32-bit JVMs don't supported multi-layered SCCs.
 [ -e "$JAVA_HOME/lib/i386" -o -e "$JAVA_HOME/lib/ppc" -o -e "$JAVA_HOME/lib/s390" ] && exit 0
 
 SCC_SIZE="80m"  # Default size of the SCC layer.
-ITERATIONS=2    # Number of iterations to run to populate it.
+ITERATIONS=10    # Number of iterations to run to populate it.
 TRIM_SCC=yes    # Trim the SCC to eliminate any wasted space.
 
 # If this directory exists and has at least ug=rwx permissions, assume the base image includes an SCC called 'openj9_system_scc' and build on it.
@@ -97,7 +97,7 @@ if [ $TRIM_SCC == yes ]
 then
   echo "Calculating SCC layer upper bound, starting with initial size $SCC_SIZE."
   # Populate the newly created class cache layer.
-  /opt/ibm/wlp/bin/server start
+  /opt/ibm/wlp/bin/server start || { ec=$?; echo "==> start failed" >&2; ls -la /logs >&2; cat /logs/messages.log >&2; cat /logs/console.log >&2; cat /logs/start.log >&2; exit $ec; }
   /opt/ibm/wlp/bin/server stop
   # Find out how full it is.
   FULL=`( java $PRINT_LAYER_STATS || true ) 2>&1 | awk '/^Cache is [0-9.]*% .*full/ {print substr($3, 1, length($3)-1)}'`
@@ -121,7 +121,7 @@ fi
 # Server start/stop to populate the /output/workarea and make subsequent server starts faster.
 for ((i=0; i<$ITERATIONS; i++))
 do
-  /opt/ibm/wlp/bin/server start
+  /opt/ibm/wlp/bin/server start || { ec=$?; echo "==> start failed" >&2; ls -la /logs >&2; cat /logs/messages.log >&2; cat /logs/console.log >&2; cat /logs/start.log >&2; exit $ec; }
   /opt/ibm/wlp/bin/server stop
 done
 
